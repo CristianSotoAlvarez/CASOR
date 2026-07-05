@@ -1,0 +1,29 @@
+# Compilación .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+*.DotSettings.user
+
+# Paquetes y artefactos
+*.nupkg
+publish/
+TestResults/
+coverage*/
+
+# Secretos y entorno local — JAMÁS commitear credenciales
+appsettings.Production.json
+*.pfx
+*.env
+.env*
+
+# Bases de datos locales de prueba
+*.db
+*.db-journal
+*.sqlite
+
+# SO
+.DS_Store
+Thumbs.db
