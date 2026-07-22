@@ -1,5 +1,9 @@
 using System.Text;
+using Casor.Api.Endpoints;
 using Casor.Application.Auth;
+using Casor.Application.Catalogo;
+using Casor.Application.Comun;
+using Casor.Application.Stock;
 using Casor.Domain;
 using Casor.Domain.Entidades;
 using Casor.Infrastructure;
@@ -14,6 +18,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<CasorDbContext>(opt =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("Central")));
 
+builder.Services.AddScoped<ICasorDb>(sp => sp.GetRequiredService<CasorDbContext>());
+builder.Services.AddScoped<CrearProducto>();
+builder.Services.AddScoped<CambiarPrecio>();
+builder.Services.AddScoped<BuscarProductos>();
+builder.Services.AddScoped<AlternativasBioequivalentes>();
+builder.Services.AddScoped<RegistrarMovimientoStock>();
+builder.Services.AddScoped<ConsultarAlertas>();
 builder.Services.AddScoped<IServicioPassword, ServicioPassword>();
 builder.Services.AddScoped<IServicioToken, ServicioTokenJwt>();
 
@@ -65,6 +76,8 @@ app.MapGet("/admin/ping", () => Results.Ok(new { zona = "admin" }))
 
 app.MapGet("/pos/ping", () => Results.Ok(new { zona = "pos" }))
    .RequireAuthorization(p => p.RequireRole(nameof(RolUsuario.Admin), nameof(RolUsuario.Pos)));
+
+app.MapInventario();
 
 // ---------- Semilla: primer admin si la base está vacía ----------
 using (var scope = app.Services.CreateScope())

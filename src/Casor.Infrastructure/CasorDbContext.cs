@@ -1,3 +1,4 @@
+using Casor.Application.Comun;
 using Casor.Domain;
 using Casor.Domain.Entidades;
 using Microsoft.EntityFrameworkCore;
@@ -10,8 +11,11 @@ namespace Casor.Infrastructure;
 /// Divergencias documentadas: enums como texto y JSON como texto,
 /// para que el mismo modelo corra en PostgreSQL (central) y SQLite (cajas).
 /// </summary>
-public class CasorDbContext(DbContextOptions<CasorDbContext> options) : DbContext(options)
+public class CasorDbContext(DbContextOptions<CasorDbContext> options) : DbContext(options), ICasorDb
 {
+    public async Task<ITransaccion> IniciarTransaccionAsync() =>
+        new TransaccionEf(await Database.BeginTransactionAsync());
+
     public DbSet<Empresa> Empresas => Set<Empresa>();
     public DbSet<Sucursal> Sucursales => Set<Sucursal>();
     public DbSet<Usuario> Usuarios => Set<Usuario>();

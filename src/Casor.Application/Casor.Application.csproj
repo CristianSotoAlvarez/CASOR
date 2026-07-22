@@ -6,6 +6,9 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.*" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Casor.Domain\Casor.Domain.csproj" />
   </ItemGroup>
 </Project>
