@@ -25,3 +25,6 @@ public enum TipoAjuste { RetomaCiclica, Merma, Sobrante, Empacado, Vencimiento }
 public enum TipoReceta { Retenida, RetenidaControlStock, Cheque }
 
 public enum TipoPromocion { Porcentaje, MontoFijo, PrecioOferta, Mxn }
+
+
+public enum EstadoOrdenCompra { Borrador, Enviada, RecibidaParcial, RecibidaTotal, Cancelada }
