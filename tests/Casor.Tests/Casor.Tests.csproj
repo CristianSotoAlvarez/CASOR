@@ -13,5 +13,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Casor.Domain\Casor.Domain.csproj" />
     <ProjectReference Include="..\..\src\Casor.Application\Casor.Application.csproj" />
+    <ProjectReference Include="..\..\src\Casor.Infrastructure\Casor.Infrastructure.csproj" />
   </ItemGroup>
 </Project>
