@@ -1,4 +1,6 @@
-# CASOR — Diccionario de Datos v1.0
+# CASOR — Diccionario de Datos v1.1
+
+> **Cambios v1.1 (acuerdo con stakeholder, jul-2026):** se eliminó el manejo por LOTES (entidades LOTE y STOCK_LOTE) — el stock vive por producto+sucursal en STOCK_SUCURSAL. **Acuerdo firmado:** se renuncia a FEFO automático (RF-04), respuesta a recalls ISP por lote y trazabilidad por lote; reincorporarlos a futuro implica migración mayor. Además: tipos de receta chilenos completos, tabla PROMOCION, y razón social del receptor en CLIENTE.
 
 Documento de respaldo del modelo: qué es cada entidad, para qué sirve cada atributo y por qué cada cardinalidad es la que es. Acompaña a `casor_schema.sql`. Cada entidad indica el requerimiento (RF/RNF) que la justifica.
 
@@ -67,9 +69,10 @@ Convenciones: dinero en `numeric(12,0)` (CLP sin decimales — jamás float, los
 | `concentracion` | '500 mg'. Dos productos son bioequivalentes si comparten principio Y concentración — sin esto el motor sugeriría dosis equivocadas. |
 | `linea` | Categorización comercial para reportes. |
 | `refrigerado` | Alerta operativa de cadena de frío en recepción y venta. |
-| `condicion_venta` (enum) | Venta directa / receta simple / retenida / estupefaciente. Es lo que dispara el flujo ISP en la caja (RF-06): el POS pide receta según este valor. |
+| `condicion_venta` (enum) | Venta directa / receta simple / receta retenida / retenida con control de stock / receta cheque (v1.1: tipología chilena completa). Es lo que dispara el flujo ISP en la caja (RF-06). |
 | `nombre_isp`, `titular_isp` | Registro sanitario del producto: datos que exigen los libros legales. |
 | `precio_venta` | Precio vigente al público, bruto (IVA incluido, decisión D1/ley del consumidor). Sin él la caja no puede cobrar. |
+| `costo_unitario` | Último costo de compra al proveedor, NETO (v1.1: al no haber lotes, el costo vive aquí). Margen ≈ `(precio_venta ÷ 1.19) − costo_unitario`. La precisión por compra se recuperará con RECEPCION en Fase 1. |
 | `stock_minimo`, `stock_maximo` | Umbrales de la alerta de stock crítico (RF-07): bajo el mínimo se sugiere comprar; sobre el máximo, capital inmovilizado. |
 | `cantidad_presentacion` + `id_presentacion` (FK) | "Caja de 20 comprimidos": cómo se vende la unidad. |
 | `activo` | Descatalogar sin borrar historial de ventas. |
@@ -88,27 +91,15 @@ Convenciones: dinero en `numeric(12,0)` (CLP sin decimales — jamás float, los
 
 ## Inventario
 
-### LOTE
-**Qué es:** la tanda de fabricación del laboratorio: número impreso en la caja + fecha de vencimiento. **Por qué es la entidad más importante del sistema:** habilita FEFO (RF-04, la funcionalidad "killer" contra Golan), la respuesta a retiros de mercado del ISP, y la trazabilidad de devoluciones. Sin lote, el sistema es un POS genérico.
+### STOCK_SUCURSAL
+**Qué es:** cuánto queda de cada producto en cada sucursal. **La única fuente de verdad del inventario** (v1.1, sin lotes por acuerdo con stakeholder). PK compuesta (id_producto, id_sucursal): no puede haber dos filas para el mismo par.
 
 | Atributo | Motivo |
 |---|---|
-| `id_producto` (FK) | De qué producto es la tanda. |
-| `numero_lote` | El identificador impreso por el fabricante; con él se responde un recall. |
-| `fecha_vencimiento` | El dato que ordena TODO el inventario: FEFO = vender primero lo que vence antes. Indexado junto a producto (índice FEFO). |
-| `cantidad_ingresada` | Registro histórico de cuánto llegó (la cantidad viva está en STOCK_LOTE). Permite reclamos al proveedor. |
-| `costo_unitario` | Lo que la farmacia pagó al proveedor por unidad de ESTE lote. Vive aquí y no en Producto porque el costo cambia en cada compra. Como cada venta registra su lote, el margen se calcula exacto: `detalle.precio_unitario − lote.costo_unitario`. Es la base de las "ganancias con/sin IVA" del informe de resultados (RF-09). |
+| `cantidad_actual` | La cantidad viva. `CHECK >= 0`: el motor hace físicamente imposible el stock negativo. Ventas restan, recepciones/devoluciones suman, ajustes corrigen — siempre en la misma transacción que el documento que lo causa. |
+| `fecha_vencimiento_proxima` | Parche manual de vencimientos al no existir lotes: el operario la actualiza al recibir mercadería. Alimenta la vista de vencimientos con precisión limitada (acuerdo v1.1). |
 
-**Cardinalidad:** `PRODUCTO 1──N LOTE` (un producto llega en muchas tandas).
-
-### STOCK_LOTE
-**Qué es:** cuánto queda de cada lote en cada sucursal. **La única fuente de verdad del inventario.** **Por qué PK compuesta (id_lote, id_sucursal):** es la resolución de la relación N:M "un lote puede estar repartido en varias sucursales; una sucursal almacena muchos lotes" — no puede haber dos filas para el mismo par.
-
-| Atributo | Motivo |
-|---|---|
-| `cantidad_actual` | La cantidad viva. `CHECK >= 0`: el motor de BD hace físicamente imposible el stock negativo — regla de oro protegida por la base, no solo por el código. |
-
-**Nota de diseño:** los totales por producto/sucursal y por cadena NO son tablas — son las vistas `vista_stock_sucursal` y `vista_stock_cadena` (suma de esta tabla). Un solo lugar escribible = descuadre matemáticamente imposible. (Aquí murió la extinta STOCKSUCURSAL.)
+**Nota:** el costo vive en `producto.costo_unitario` (último costo de compra, NETO — el IVA de compra es crédito fiscal, no costo). El total de cadena es la vista `vista_stock_cadena`.
 
 ---
 
@@ -120,6 +111,7 @@ Convenciones: dinero en `numeric(12,0)` (CLP sin decimales — jamás float, los
 | Atributo | Motivo |
 |---|---|
 | `rut_cliente` (único, null) | Identidad tributaria cuando existe (necesaria para factura). |
+| `razon_social`, `giro` (null) | Datos del RECEPTOR que la factura electrónica exige (v1.1). Vacíos para boletas; obligatorios en la app al emitir factura. El emisor está en EMPRESA. |
 | `nombre`, `email`, `numero_telefonico`, `direccion` | Contacto para cotizaciones y convenios. |
 
 ### CAJA_SESION
@@ -165,8 +157,9 @@ Convenciones: dinero en `numeric(12,0)` (CLP sin decimales — jamás float, los
 | Atributo | Motivo |
 |---|---|
 | `id_venta` (FK) | `VENTA 1──N DETALLE` — una venta tiene al menos una línea. |
-| `id_producto` (FK) | Qué se vendió. Redundante con el lote a propósito: los reportes por producto (RF-09) no pagan un JOIN extra. |
-| `id_lote` (FK) | **La columna crítica:** de qué caja física salió. Es la contabilidad interna del FEFO — permite que devoluciones repongan al lote correcto, que un recall del ISP se responda con un SELECT, y que el libro de estupefacientes registre el lote exacto. Regla: venta que consume N lotes = N filas de detalle. |
+| `id_producto` (FK) | Qué se vendió; alimenta los reportes por producto (RF-09). |
+| `descuento` | Rebaja aplicada a la línea (0 por defecto). Persistida: la boleta histórica es auditable sin recálculo. |
+| `id_promocion` (FK, null) | Por qué hubo descuento: enlaza a la promoción vigente que lo generó. NULL = descuento manual autorizado. |
 | `cantidad` (`CHECK > 0`) | Línea de cero unidades no existe. |
 | `precio_unitario` | **Congelado al momento de vender**: si mañana cambia el precio de lista, la boleta histórica no cambia. |
 | `subtotal` | cantidad × precio − descuento, persistido para que la suma de la boleta sea auditable sin recálculo. |
@@ -181,6 +174,21 @@ Convenciones: dinero en `numeric(12,0)` (CLP sin decimales — jamás float, los
 
 ---
 
+## Promociones
+
+### PROMOCION
+**Qué es:** cada oferta con vigencia (RF-10). **Por qué tabla y no solo una columna de descuento:** las promociones tienen fecha de inicio/término (mueren solas), se aplican automáticamente en caja sin depender del cajero, y se reportean ("¿cuánto costó el 3x2 de invierno?").
+
+| Atributo | Motivo |
+|---|---|
+| `tipo` (enum) | porcentaje / monto_fijo / precio_oferta / mxn (ej: 3x2). |
+| `valor` | El número que el tipo interpreta (15 = 15%, o el precio oferta, o el "paga n"). |
+| `vigente_desde/hasta` | La vida de la promo; el POS solo aplica las vigentes y activas. |
+
+`PROMOCION 1──N DETALLE_VENTA` (opcional): cada línea vendida con promo registra cuál fue.
+
+---
+
 ## Normativo ISP
 
 ### RECETA_RETENIDA
@@ -189,7 +197,8 @@ Convenciones: dinero en `numeric(12,0)` (CLP sin decimales — jamás float, los
 | Atributo | Motivo |
 |---|---|
 | `id_detalle_venta` (FK, **única**) | Cuelga del detalle, no de la venta: se retiene por medicamento específico, no por boleta. El UNIQUE materializa el **1:1 parcial**: un detalle controlado genera exactamente una receta; los no controlados, ninguna. |
-| `tipo` (enum) | Retenida vs estupefaciente: son libros legales distintos. |
+| `tipo` (enum) | Los tipos chilenos que generan registro: `retenida`, `retenida_control_stock` (psicotrópicos — exige cuadrar entradas/salidas en su libro) y `cheque` (estupefacientes, talonario ministerial). La receta *simple* se exhibe pero no se retiene → no genera fila; se controla con `producto.condicion_venta`. |
+| `serie_receta_cheque` | Serie del talonario ministerial — obligatoria solo si tipo=cheque (CHECK en BD). |
 | `folio_libro` | Correlativo del libro — el "con un clic" que promete el documento CASOR. Único por tipo. |
 | `fecha` | Fecha legal del registro. |
 | `nombre_medico`, `rut_medico` | Quién prescribió (exigencia del libro). Desnormalizado a propósito en V1: tabla MEDICO se evalúa si el volumen lo justifica. |
@@ -211,14 +220,14 @@ Convenciones: dinero en `numeric(12,0)` (CLP sin decimales — jamás float, los
 | `comprobante` | Número del documento de ajuste que exige el flujo Golan-equivalente. |
 
 ### DETALLE_AJUSTE
-**Qué es:** cada lote corregido dentro de un ajuste. `AJUSTE 1──N DETALLE` (la FK vive aquí, en el hijo).
+**Qué es:** cada producto corregido dentro de un ajuste (v1.1: por producto, sin lotes). `AJUSTE 1──N DETALLE` (la FK vive aquí, en el hijo).
 
 | Atributo | Motivo |
 |---|---|
-| `id_lote` (FK) | El ajuste corrige a nivel de lote — coherente con que el stock vive por lote. |
+| `id_producto` (FK) | El producto cuyo conteo se corrige — coherente con que el stock vive por producto+sucursal. |
 | `cantidad_sistema` | Lo que el sistema creía. |
 | `cantidad_contada` | Lo que se contó físicamente. |
-| `delta` | La diferencia aplicada a STOCK_LOTE. Guardar los tres números (y no solo el delta) hace cada conteo auditable años después. |
+| `delta` | La diferencia aplicada a STOCK_SUCURSAL. Guardar los tres números (y no solo el delta) hace cada conteo auditable años después. |
 
 ---
 
@@ -254,9 +263,8 @@ Convenciones: dinero en `numeric(12,0)` (CLP sin decimales — jamás float, los
 
 | Vista | Utilidad |
 |---|---|
-| `vista_stock_sucursal` | Total por producto y sucursal (reemplaza a la extinta tabla STOCKSUCURSAL). Pantalla de stock del Admin y stock valorizado del día (RF-09). |
 | `vista_stock_cadena` | Total por producto en todas las sucursales — la vista del dueño multi-local. |
-| `vista_vencimientos_proximos` | Lotes con stock que vencen en ≤90 días, ordenados: alimenta las alertas FEFO del POS y la liquidación de vencimientos. |
+| `vista_vencimientos_proximos` | Productos con stock y fecha de vencimiento próxima (≤90 días) según el registro manual — precisión limitada sin lotes (acuerdo v1.1). |
 
 ---
 
@@ -269,8 +277,7 @@ Convenciones: dinero en `numeric(12,0)` (CLP sin decimales — jamás float, los
 | PrincipioActivo—Producto | 1:N (opcional) | Muchas marcas comparten compuesto = motor de bioequivalentes. No-medicamentos van sin principio. |
 | TipoPresentacion—Producto | 1:N | Unidad de medida normalizada. |
 | Producto—PrecioHistorico | 1:N | Un producto acumula precios en el tiempo. |
-| Producto—Lote | 1:N | Un producto llega en muchas tandas de fábrica. |
-| Lote—Sucursal (StockLote) | N:M con atributo | Un lote repartido en varios locales; el atributo CantidadActual es EL inventario. |
+| Producto—Sucursal (StockSucursal) | N:M con atributo | El inventario por local (v1.1 sin lotes); CantidadActual es EL stock. |
 | Usuario—CajaSesion | 1:N | Un cajero abre muchos turnos; cada turno tiene un único responsable del dinero. |
 | Sucursal—CajaSesion | 1:N | El turno ocurre en un local. |
 | CajaSesion—Venta | 1:N | Toda venta pertenece a un turno (sin sesión no hay venta). |
@@ -279,11 +286,11 @@ Convenciones: dinero en `numeric(12,0)` (CLP sin decimales — jamás float, los
 | Venta—Venta (anula) | 1:N, opcional | La NC apunta a la venta que revierte; una venta puede tener varias NC parciales. |
 | Venta—DetalleVenta | 1:N (mín. 1) | Boleta sin líneas no existe. |
 | Producto—DetalleVenta | 1:N | Qué se vendió (reportes por producto). |
-| Lote—DetalleVenta | 1:N | De qué caja física salió: FEFO, devoluciones, recalls. |
+| Promocion—DetalleVenta | 1:N opcional | Qué promo explicó el descuento de la línea. |
 | Venta—Pago | 1:N (mín. 1) | Pagos mixtos; cuadratura por medio de pago. |
 | DetalleVenta—RecetaRetenida | 1:1 **parcial** | Solo los detalles de controlados generan registro legal; nunca más de uno. |
 | Usuario—AjusteInventario | 1:N | Quién contó (antifraude). |
 | Sucursal—AjusteInventario | 1:N | Dónde se ajustó. |
-| AjusteInventario—DetalleAjuste | 1:N (mín. 1) | Un comprobante corrige uno o más lotes. |
-| Lote—DetalleAjuste | 1:N | La corrección es por lote, como todo el stock. |
+| AjusteInventario—DetalleAjuste | 1:N (mín. 1) | Un comprobante corrige uno o más productos. |
+| Producto—DetalleAjuste | 1:N | La corrección es por producto (v1.1 sin lotes). |
 | Sucursal—FolioCaf | 1:N opcional | Sub-rangos de folios por caja para emisión offline. |
