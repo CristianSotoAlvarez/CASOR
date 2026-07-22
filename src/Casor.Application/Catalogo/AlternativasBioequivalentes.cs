@@ -26,13 +26,13 @@ public class AlternativasBioequivalentes(ICasorDb db)
                      && p.Id != productoId
                      && p.PrincipioActivoId == origen.PrincipioActivoId
                      && p.Concentracion == origen.Concentracion)
+            .OrderBy(p => p.PrecioVenta)      // ordenar ANTES del Select: EF lo traduce
             .Select(p => new Alternativa(
                 p.Id, p.Descripcion, p.PrecioVenta,
                 db.StockSucursales
                     .Where(s => s.ProductoId == p.Id && s.SucursalId == sucursalId)
                     .Select(s => s.CantidadActual)
                     .FirstOrDefault()))
-            .OrderBy(a => a.PrecioVenta)
             .ToListAsync();
     }
 }

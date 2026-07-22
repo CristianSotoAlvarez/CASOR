@@ -18,6 +18,6 @@ public class CalculadoraIvaTests
     {
         // precio venta bruto 1990, costo neto 900 → margen = neto(1990) - 900
         var margen = CalculadoraIva.NetoDesdeBruto(1990m) - 900m;
-        Assert.Equal(773m, margen);   // 1673 - 900
+        Assert.Equal(772m, margen);   // neto(1990)=1672 → 1672-900
     }
 }
