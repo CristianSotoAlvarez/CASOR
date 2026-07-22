@@ -8,6 +8,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.*" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.*" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.*" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.*" /> <!-- parche GHSA-2m69-gcr7-jv3q -->
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Casor.Application\Casor.Application.csproj" />

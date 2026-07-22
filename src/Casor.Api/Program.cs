@@ -1,6 +1,12 @@
+using Casor.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// TODO Fase 1: EF Core + PostgreSQL, JWT, roles Admin/POS (RNF-03)
+// EF Core + PostgreSQL (la caja usará el mismo DbContext con UseSqlite)
+builder.Services.AddDbContext<CasorDbContext>(opt =>
+    opt.UseNpgsql(builder.Configuration.GetConnectionString("Central")));
+
 builder.Services.AddEndpointsApiExplorer();
 
 var app = builder.Build();
