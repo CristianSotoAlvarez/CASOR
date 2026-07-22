@@ -60,8 +60,10 @@ public class InventarioTests : IAsyncLifetime
         var id = await ProductoDePrueba(1000m);
         await new CambiarPrecio(_db).EjecutarAsync(id, 1200m, _usuarioId);
 
-        var historicos = await _db.PreciosHistoricos
-            .Where(p => p.ProductoId == id).OrderBy(p => p.VigenteDesde).ToListAsync();
+        // orden en memoria: SQLite no soporta ORDER BY sobre DateTimeOffset
+        var historicos = (await _db.PreciosHistoricos
+            .Where(p => p.ProductoId == id).ToListAsync())
+            .OrderBy(p => p.VigenteDesde).ToList();
         Assert.Equal(2, historicos.Count);
         Assert.NotNull(historicos[0].VigenteHasta);  // el viejo quedó cerrado
         Assert.Null(historicos[1].VigenteHasta);     // el nuevo es el vigente
