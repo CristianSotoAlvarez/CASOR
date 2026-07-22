@@ -13,8 +13,14 @@ namespace Casor.Infrastructure;
 /// </summary>
 public class CasorDbContext(DbContextOptions<CasorDbContext> options) : DbContext(options), ICasorDb
 {
-    public async Task<ITransaccion> IniciarTransaccionAsync() =>
-        new TransaccionEf(await Database.BeginTransactionAsync());
+    public async Task<ITransaccion> IniciarTransaccionAsync()
+    {
+        // Transacción anidada: si ya hay una activa (un caso de uso llamando a
+        // otro), el interior se suma a ella — solo el EXTERIOR confirma o revierte.
+        if (Database.CurrentTransaction is not null)
+            return new TransaccionAnidada();
+        return new TransaccionEf(await Database.BeginTransactionAsync());
+    }
 
     public DbSet<Empresa> Empresas => Set<Empresa>();
     public DbSet<Sucursal> Sucursales => Set<Sucursal>();
@@ -35,6 +41,11 @@ public class CasorDbContext(DbContextOptions<CasorDbContext> options) : DbContex
     public DbSet<DetalleAjuste> DetallesAjuste => Set<DetalleAjuste>();
     public DbSet<FolioCaf> FoliosCaf => Set<FolioCaf>();
     public DbSet<Auditoria> Auditorias => Set<Auditoria>();
+    public DbSet<Proveedor> Proveedores => Set<Proveedor>();
+    public DbSet<OrdenCompra> OrdenesCompra => Set<OrdenCompra>();
+    public DbSet<DetalleOrdenCompra> DetallesOrdenCompra => Set<DetalleOrdenCompra>();
+    public DbSet<Recepcion> Recepciones => Set<Recepcion>();
+    public DbSet<DetalleRecepcion> DetallesRecepcion => Set<DetalleRecepcion>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder b)
     {
@@ -50,6 +61,7 @@ public class CasorDbContext(DbContextOptions<CasorDbContext> options) : DbContex
         b.Properties<TipoAjuste>().HaveConversion<string>().HaveMaxLength(30);
         b.Properties<TipoReceta>().HaveConversion<string>().HaveMaxLength(30);
         b.Properties<TipoPromocion>().HaveConversion<string>().HaveMaxLength(20);
+        b.Properties<EstadoOrdenCompra>().HaveConversion<string>().HaveMaxLength(20);
     }
 
     protected override void OnModelCreating(ModelBuilder mb)
@@ -173,6 +185,16 @@ public class CasorDbContext(DbContextOptions<CasorDbContext> options) : DbContex
             e.ToTable("folio_caf", t =>
                 t.HasCheckConstraint("ck_caf_rango", "\"RangoHasta\" >= \"RangoDesde\""));
         });
+
+        mb.Entity<Proveedor>(e =>
+        {
+            e.ToTable("proveedor");
+            e.HasIndex(x => x.Rut).IsUnique();
+        });
+        mb.Entity<OrdenCompra>(e => e.ToTable("orden_compra"));
+        mb.Entity<DetalleOrdenCompra>(e => e.ToTable("detalle_orden_compra"));
+        mb.Entity<Recepcion>(e => e.ToTable("recepcion"));
+        mb.Entity<DetalleRecepcion>(e => e.ToTable("detalle_recepcion"));
 
         mb.Entity<Auditoria>(e =>
         {

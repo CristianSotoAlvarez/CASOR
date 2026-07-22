@@ -12,3 +12,10 @@ public sealed class TransaccionEf(IDbContextTransaction tx) : ITransaccion
     public Task ConfirmarAsync() => tx.CommitAsync();
     public ValueTask DisposeAsync() => tx.DisposeAsync();
 }
+
+/// <summary>Participante de una transacción ya abierta: no confirma ni revierte — eso es del dueño exterior.</summary>
+public sealed class TransaccionAnidada : Casor.Application.Comun.ITransaccion
+{
+    public Task ConfirmarAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}

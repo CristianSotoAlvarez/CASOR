@@ -17,6 +17,10 @@ public interface ICasorDb
     DbSet<StockSucursal> StockSucursales { get; }
     DbSet<Sucursal> Sucursales { get; }
     DbSet<Auditoria> Auditorias { get; }
+    DbSet<Proveedor> Proveedores { get; }
+    DbSet<OrdenCompra> OrdenesCompra { get; }
+    DbSet<Recepcion> Recepciones { get; }
+    DbSet<AjusteInventario> AjustesInventario { get; }
     Task<int> SaveChangesAsync(CancellationToken ct = default);
     Task<ITransaccion> IniciarTransaccionAsync();
 }
